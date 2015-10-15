@@ -110,7 +110,10 @@ func ParseUri(uri string) (cli Client, err error) {
 }
 
 // Search runs a search query against the entire subtree of the LDAP base DN
-func (cli *Client) Search(filter string, attributes []string) (entries []ldap.Entry, err error) {
+func (cli *Client) Search(base, filter string, attributes []string) (entries []ldap.Entry, err error) {
+	if base == "" {
+		base = cli.BaseDN
+	}
 	searchRequest := ldap.NewSearchRequest(
 		cli.BaseDN,             // base dn
 		ldap.ScopeWholeSubtree, // scope
@@ -136,7 +139,7 @@ func (cli *Client) Search(filter string, attributes []string) (entries []ldap.En
 // shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
 // or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
 func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err error) {
-	entries, err := cli.Search("("+shortdn+")", []string{"sshPublicKey"})
+	entries, err := cli.Search("", "("+shortdn+")", []string{"sshPublicKey"})
 	if err != nil {
 		return
 	}
@@ -147,6 +150,38 @@ func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err e
 			}
 			for _, val := range attr.Values {
 				pubkeys = append(pubkeys, val)
+			}
+		}
+	}
+	return
+}
+
+// GetUsersInGroups takes a list of ldap groups and returns a list of unique members
+// that belong to at least one of the group. Duplicates are removed, so you only get
+// members once even if they belong to several groups.
+func (cli *Client) GetUsersInGroups(groups []string) (userdns []string, err error) {
+	q := "(|"
+	for _, group := range groups {
+		q += "(cn=" + group + ")"
+	}
+	q += ")"
+	entries, err := cli.Search("ou=groups,"+cli.BaseDN, q, []string{"member"})
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name != "member" {
+				continue
+			}
+			for _, val := range attr.Values {
+				for _, knowndn := range userdns {
+					if val == knowndn {
+						goto skipit
+					}
+				}
+				userdns = append(userdns, val)
+			skipit:
 			}
 		}
 	}
