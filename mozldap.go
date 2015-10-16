@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"gopkg.in/ldap.v2"
 )
@@ -134,10 +135,36 @@ func (cli *Client) Search(base, filter string, attributes []string) (entries []l
 	return
 }
 
+// GetUserID returns the uid of a given user
+//
+// example: cli.GetUserId("mail=jvehent@mozilla.com")
+func (cli *Client) GetUserId(shortdn string) (uid string, err error) {
+	entries, err := cli.Search("", "("+shortdn+")", []string{"uid"})
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name != "uid" {
+				continue
+			}
+			for _, val := range attr.Values {
+				uid = val
+			}
+		}
+	}
+	if uid == "" {
+		err = fmt.Errorf("no uid found in the attributes of user '%s'", shortdn)
+	}
+	return
+}
+
 // GetUserSSHPublicKeys returns a list of public keys defined in a user's sshPublicKey
 // LDAP attribute. If no public key is found, the list is empty.
 // shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
 // or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
+//
+// example: cli.GetUserSSHPublicKeys("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err error) {
 	entries, err := cli.Search("", "("+shortdn+")", []string{"sshPublicKey"})
 	if err != nil {
@@ -149,7 +176,10 @@ func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err e
 				continue
 			}
 			for _, val := range attr.Values {
-				pubkeys = append(pubkeys, val)
+				if len(val) < 10 || val[0:3] != "ssh" {
+					continue
+				}
+				pubkeys = append(pubkeys, strings.Trim(val, "\n"))
 			}
 		}
 	}
@@ -159,6 +189,8 @@ func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err e
 // GetUsersInGroups takes a list of ldap groups and returns a list of unique members
 // that belong to at least one of the group. Duplicates are removed, so you only get
 // members once even if they belong to several groups.
+//
+// example: cli.GetUsersInGroups([]string{"sysadmins", "svcops", "mojitomakers"})
 func (cli *Client) GetUsersInGroups(groups []string) (userdns []string, err error) {
 	q := "(|"
 	for _, group := range groups {
