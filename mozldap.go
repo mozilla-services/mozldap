@@ -22,9 +22,15 @@ type Client struct {
 // NewClient initializes a ldap connection to a given URI. if tlsconf is nil, sane
 // default are used (tls1.2, secure verify, ...).
 func NewClient(uri, username, password string, tlsconf *tls.Config, starttls bool) (cli Client, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.NewClient(uri=%q, username=%q, password=****, tlsconf=%+v, starttls=%v) -> %v",
+				uri, username, tlsconf, starttls, e)
+		}
+	}()
 	cli, err = ParseUri(uri)
 	if err != nil {
-		return
+		panic(err)
 	}
 	if tlsconf == nil {
 		// sensible default for TLS configuration
@@ -52,7 +58,7 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 		cli.conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", cli.Host, cli.Port))
 	}
 	if err != nil {
-		return
+		panic(err)
 	}
 	// TLS and StartTLS are mutually exclusive
 	if !cli.UseTLS && starttls {
@@ -60,7 +66,7 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 		err = cli.conn.StartTLS(tlsconf)
 		if err != nil {
 			cli.conn.Close()
-			return
+			panic(err)
 		}
 	}
 	// First bind with a read only user
@@ -75,10 +81,15 @@ const URIFORMAT = "ldaps://ldap.example.net:636/dc=example,dc=net"
 // ParseUri extracts connection parameters from a given URI and return a client
 // that is ready to connect. This shouldn't be called directly, use NewClient() instead.
 func ParseUri(uri string) (cli Client, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.ParseUri(uri=%q) -> %v", uri, e)
+		}
+	}()
 	urire := regexp.MustCompile(URIRE)
 	fields := urire.FindStringSubmatch(uri)
 	if fields == nil || len(fields) != 5 {
-		return cli, fmt.Errorf("failed to parse URI. format is '%s'", URIFORMAT)
+		panic("failed to parse URI. format is " + URIFORMAT)
 	}
 	// tls or not depends on "s"
 	if fields[1] == "s" {
@@ -86,7 +97,7 @@ func ParseUri(uri string) (cli Client, err error) {
 	}
 	// get the hostname
 	if fields[2] == "" {
-		return cli, fmt.Errorf("missing host in URI. format is '%s'", URIFORMAT)
+		panic("missing host in URI. format is " + URIFORMAT)
 	}
 	cli.Host = fields[2]
 	// get the port or use default ports
@@ -99,12 +110,12 @@ func ParseUri(uri string) (cli Client, err error) {
 	} else {
 		cli.Port, err = strconv.Atoi(fields[2])
 		if err != nil {
-			return cli, fmt.Errorf("invalid port in uri. format is '%s'", URIFORMAT)
+			panic("invalid port in uri. format is " + URIFORMAT)
 		}
 	}
 	// get the base DN
 	if fields[4] == "" {
-		return cli, fmt.Errorf("missing base DN in URI. format is '%s'", URIFORMAT)
+		panic("missing base DN in URI. format is " + URIFORMAT)
 	}
 	cli.BaseDN = fields[4]
 	return
@@ -112,6 +123,12 @@ func ParseUri(uri string) (cli Client, err error) {
 
 // Search runs a search query against the entire subtree of the LDAP base DN
 func (cli *Client) Search(base, filter string, attributes []string) (entries []ldap.Entry, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.NewClient(base=%q, filter=%q, attributes=%q) -> %v",
+				base, filter, attributes, e)
+		}
+	}()
 	if base == "" {
 		base = cli.BaseDN
 	}
@@ -127,7 +144,7 @@ func (cli *Client) Search(base, filter string, attributes []string) (entries []l
 		nil)        // controls
 	sr, err := cli.conn.Search(searchRequest)
 	if err != nil {
-		return
+		panic(err)
 	}
 	for _, entry := range sr.Entries {
 		entries = append(entries, *entry)
