@@ -125,7 +125,7 @@ func ParseUri(uri string) (cli Client, err error) {
 func (cli *Client) Search(base, filter string, attributes []string) (entries []ldap.Entry, err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("mozldap.NewClient(base=%q, filter=%q, attributes=%q) -> %v",
+			err = fmt.Errorf("mozldap.Search(base=%q, filter=%q, attributes=%q) -> %v",
 				base, filter, attributes, e)
 		}
 	}()
@@ -235,4 +235,31 @@ func (cli *Client) GetUsersInGroups(groups []string) (userdns []string, err erro
 		}
 	}
 	return
+}
+
+// GetUserEmailByUid returns the first email address found in the user's attributes
+//
+// example: cli.GetUserEmailByUid("jvehent")
+func (cli *Client) GetUserEmailByUid(uid string) (mail string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserEmailByUid(uid=%q) -> %v",
+				uid, e)
+		}
+	}()
+	entries, err := cli.Search("", "(uid="+uid+")", []string{"mail"})
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name != "mail" {
+				continue
+			}
+			if len(attr.Values) > 0 {
+				return attr.Values[0], nil
+			}
+		}
+	}
+	panic("no mail attribute found")
 }
