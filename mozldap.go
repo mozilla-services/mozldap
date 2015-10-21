@@ -263,3 +263,30 @@ func (cli *Client) GetUserEmailByUid(uid string) (mail string, err error) {
 	}
 	panic("no mail attribute found")
 }
+
+// GetUserEmail returns the first email address found in the user's attributes
+//
+// example: cli.GetUserEmail("mail=jvehent@mozilla.com")
+func (cli *Client) GetUserEmail(shortdn string) (mail string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserEmail(shortdn=%q) -> %v",
+				shortdn, e)
+		}
+	}()
+	entries, err := cli.Search("", "("+shortdn+")", []string{"mail"})
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name != "mail" {
+				continue
+			}
+			if len(attr.Values) > 0 {
+				return attr.Values[0], nil
+			}
+		}
+	}
+	panic("no mail attribute found")
+}
