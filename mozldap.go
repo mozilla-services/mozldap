@@ -37,8 +37,8 @@ type Client struct {
 func NewClient(uri, username, password string, tlsconf *tls.Config, starttls bool) (cli Client, err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("mozldap.NewClient(uri=%q, username=%q, password=****, tlsconf=%+v, starttls=%v) -> %v",
-				uri, username, tlsconf, starttls, e)
+			err = fmt.Errorf("mozldap.NewClient(uri=%q, username=%q, password=****, starttls=%v) -> %v",
+				uri, username, starttls, e)
 		}
 	}()
 	cli, err = ParseUri(uri)
@@ -62,6 +62,11 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 			InsecureSkipVerify: false,
 			ServerName:         cli.Host,
 		}
+	}
+	// if we're secure, we want to check that
+	// the server name matches the uri hostname
+	if !tlsconf.InsecureSkipVerify && tlsconf.ServerName == "" {
+		tlsconf.ServerName = cli.Host
 	}
 	if cli.UseTLS {
 		cli.conn, err = ldap.DialTLS("tcp",
@@ -146,13 +151,12 @@ func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath s
 	}
 	tlsconf.Certificates = []tls.Certificate{cert}
 	tlsconf.RootCAs = ca
-	// if we're secure, we want to check that
-	// the server name matches the uri hostname
-	if !tlsconf.InsecureSkipVerify && tlsconf.ServerName == "" {
-		tlsconf.ServerName = cli.Host
-	}
 	// instantiate an ldap client
-	return NewClient(uri, username, password, tlsconf, false)
+	cli, err = NewClient(uri, username, password, tlsconf, false)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
 
 // format: ldaps://example.net:636/dc=example,dc=net
