@@ -2,7 +2,9 @@ package mozldap
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,6 +23,17 @@ type Client struct {
 
 // NewClient initializes a ldap connection to a given URI. if tlsconf is nil, sane
 // default are used (tls1.2, secure verify, ...).
+//
+// `uri` is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
+//
+// `username` is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
+//
+// `password` is a password for the bind user
+//
+// `tlsconf` is a Go TLS Configuration
+//
+// `starttls` requires that the LDAP connection is opened insecurely but immediately switched to TLS using
+// the StartTLS protocol.
 func NewClient(uri, username, password string, tlsconf *tls.Config, starttls bool) (cli Client, err error) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -72,6 +85,74 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 	// First bind with a read only user
 	err = cli.conn.Bind(username, password)
 	return
+}
+
+// NewTLSClient initializes a ldap connection to a given URI using a client certificate.
+// This mode does not use StartTLS, and enforces a TLS connection before the LDAP authentication happens.
+//
+// `uri` is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
+//
+// `username` is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
+//
+// `password` is a password for the bind user
+//
+// `tlscertpath` is the path to a X509 client certificate in PEM format, eg `/etc/mozldap/client.crt`
+//
+// `tlskeypath` is the path to the private key that maps to the client certificate, eg `/etc/mozldap/client.key`
+//
+// `cacertpath` is the path to the X509 certificate of the Certificate Authority.
+//  If multiple CAs are used (eg. an intermediate and a root), concatenate them into a single file.
+func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath string, tlsconf *tls.Config) (cli Client, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.NewTLSClient(uri=%q, username=%q, password=****, tlscertpath=%q, tlskeypath=%q, cacertpath=%q) -> %v",
+				uri, username, tlscertpath, tlskeypath, cacertpath, e)
+		}
+	}()
+	// import the client certificates
+	cert, err := tls.LoadX509KeyPair(tlscertpath, tlskeypath)
+	if err != nil {
+		panic(err)
+	}
+
+	// import the ca cert
+	ca := x509.NewCertPool()
+	CAcert, err := ioutil.ReadFile(cacertpath)
+	if err != nil {
+		panic(err)
+	}
+
+	if ok := ca.AppendCertsFromPEM(CAcert); !ok {
+		panic("failed to import CA Certificate")
+	}
+
+	if tlsconf == nil {
+		// sensible default for TLS configuration
+		tlsconf = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			},
+			InsecureSkipVerify: false,
+			ServerName:         cli.Host,
+		}
+	}
+	tlsconf.Certificates = []tls.Certificate{cert}
+	tlsconf.RootCAs = ca
+	// if we're secure, we want to check that
+	// the server name matches the uri hostname
+	if !tlsconf.InsecureSkipVerify && tlsconf.ServerName == "" {
+		tlsconf.ServerName = cli.Host
+	}
+	// instantiate an ldap client
+	return NewClient(uri, username, password, tlsconf, false)
 }
 
 // format: ldaps://example.net:636/dc=example,dc=net
