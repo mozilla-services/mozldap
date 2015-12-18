@@ -156,7 +156,7 @@ func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath s
 }
 
 // format: ldaps://example.net:636/dc=example,dc=net
-const URIRE = "ldap(s)?://(.+):?([0-9]{1,5})?/(.+)"
+const URIRE = "ldap(s)?://([^:]+):?([0-9]{1,5})?/(.+)"
 const URIFORMAT = "ldaps://ldap.example.net:636/dc=example,dc=net"
 
 // ParseUri extracts connection parameters from a given URI and return a client
@@ -172,6 +172,7 @@ func ParseUri(uri string) (cli Client, err error) {
 	if fields == nil || len(fields) != 5 {
 		panic("failed to parse URI. format is " + URIFORMAT)
 	}
+
 	// tls or not depends on "s"
 	if fields[1] == "s" {
 		cli.UseTLS = true
@@ -189,7 +190,7 @@ func ParseUri(uri string) (cli Client, err error) {
 			cli.Port = 389
 		}
 	} else {
-		cli.Port, err = strconv.Atoi(fields[2])
+		cli.Port, err = strconv.Atoi(fields[3])
 		if err != nil {
 			panic("invalid port in uri. format is " + URIFORMAT)
 		}
