@@ -24,17 +24,18 @@ type Client struct {
 // NewClient initializes a ldap connection to a given URI. if tlsconf is nil, sane
 // default are used (tls1.2, secure verify, ...).
 //
-// `uri` is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
+// * uri is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
 //
-// `username` is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
+// * username is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
 //
-// `password` is a password for the bind user
+// * password is a password for the bind user
 //
-// `tlsconf` is a Go TLS Configuration
+// * cacertpath is the path to a file containing trusted root certificates
 //
-// `starttls` requires that the LDAP connection is opened insecurely but immediately switched to TLS using
-// the StartTLS protocol.
-func NewClient(uri, username, password string, tlsconf *tls.Config, starttls bool) (cli Client, err error) {
+// * tlsconf is a Go TLS Configuration
+//
+// * starttls requires that the LDAP connection is opened insecurely but immediately switched to TLS using the StartTLS protocol.
+func NewClient(uri, username, password, cacertpath string, tlsconf *tls.Config, starttls bool) (cli Client, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = fmt.Errorf("mozldap.NewClient(uri=%q, username=%q, password=****, starttls=%v) -> %v",
@@ -62,6 +63,18 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 			InsecureSkipVerify: false,
 			ServerName:         cli.Host,
 		}
+	}
+	if cacertpath != "" {
+		// import the ca cert
+		ca := x509.NewCertPool()
+		CAcert, err := ioutil.ReadFile(cacertpath)
+		if err != nil {
+			panic(err)
+		}
+		if ok := ca.AppendCertsFromPEM(CAcert); !ok {
+			panic("failed to import CA Certificate")
+		}
+		tlsconf.RootCAs = ca
 	}
 	// if we're secure, we want to check that
 	// the server name matches the uri hostname
@@ -95,18 +108,19 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 // NewTLSClient initializes a ldap connection to a given URI using a client certificate.
 // This mode does not use StartTLS, and enforces a TLS connection before the LDAP authentication happens.
 //
-// `uri` is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
+// * uri is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
 //
-// `username` is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
+// * username is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
 //
-// `password` is a password for the bind user
+// * password is a password for the bind user
 //
-// `tlscertpath` is the path to a X509 client certificate in PEM format, eg `/etc/mozldap/client.crt`
+// *tlscertpath is the path to a X509 client certificate in PEM format, eg `/etc/mozldap/client.crt`
 //
-// `tlskeypath` is the path to the private key that maps to the client certificate, eg `/etc/mozldap/client.key`
+// * tlskeypath is the path to the private key that maps to the client certificate, eg `/etc/mozldap/client.key`
 //
-// `cacertpath` is the path to the X509 certificate of the Certificate Authority.
-//  If multiple CAs are used (eg. an intermediate and a root), concatenate them into a single file.
+// * cacertpath is the path to the X509 certificate of the Certificate Authority.
+//
+// * tlsconf is a Go TLS Configuration which can be used to disable cert verification and other horrors
 func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath string, tlsconf *tls.Config) (cli Client, err error) {
 	defer func() {
 		if e := recover(); e != nil {
@@ -118,17 +132,6 @@ func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath s
 	cert, err := tls.LoadX509KeyPair(tlscertpath, tlskeypath)
 	if err != nil {
 		panic(err)
-	}
-
-	// import the ca cert
-	ca := x509.NewCertPool()
-	CAcert, err := ioutil.ReadFile(cacertpath)
-	if err != nil {
-		panic(err)
-	}
-
-	if ok := ca.AppendCertsFromPEM(CAcert); !ok {
-		panic("failed to import CA Certificate")
 	}
 
 	if tlsconf == nil {
@@ -150,9 +153,8 @@ func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath s
 		}
 	}
 	tlsconf.Certificates = []tls.Certificate{cert}
-	tlsconf.RootCAs = ca
 	// instantiate an ldap client
-	cli, err = NewClient(uri, username, password, tlsconf, false)
+	cli, err = NewClient(uri, username, password, cacertpath, tlsconf, false)
 	if err != nil {
 		panic(err)
 	}
