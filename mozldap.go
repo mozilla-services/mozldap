@@ -244,9 +244,15 @@ func (cli *Client) Search(base, filter string, attributes []string) (entries []l
 //
 // example: cli.GetUserId("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserId(shortdn string) (uid string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserId(shortdn=%q) -> %v",
+				shortdn, e)
+		}
+	}()
 	entries, err := cli.Search("", "("+shortdn+")", []string{"uid"})
 	if err != nil {
-		return
+		panic(err)
 	}
 	for _, entry := range entries {
 		for _, attr := range entry.Attributes {
@@ -271,9 +277,15 @@ func (cli *Client) GetUserId(shortdn string) (uid string, err error) {
 //
 // example: cli.GetUserSSHPublicKeys("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserSSHPublicKeys(shortdn=%q) -> %v",
+				shortdn, e)
+		}
+	}()
 	entries, err := cli.Search("", "("+shortdn+")", []string{"sshPublicKey"})
 	if err != nil {
-		return
+		panic(err)
 	}
 	for _, entry := range entries {
 		for _, attr := range entry.Attributes {
@@ -297,6 +309,12 @@ func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err e
 //
 // example: cli.GetUsersInGroups([]string{"sysadmins", "svcops", "mojitomakers"})
 func (cli *Client) GetUsersInGroups(groups []string) (userdns []string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUsersInGroups(groups=%q) -> %v",
+				strings.Join(groups, ","), e)
+		}
+	}()
 	q := "(|"
 	for _, group := range groups {
 		q += "(cn=" + group + ")"
@@ -304,7 +322,7 @@ func (cli *Client) GetUsersInGroups(groups []string) (userdns []string, err erro
 	q += ")"
 	entries, err := cli.Search("ou=groups,"+cli.BaseDN, q, []string{"member"})
 	if err != nil {
-		return
+		panic(err)
 	}
 	for _, entry := range entries {
 		for _, attr := range entry.Attributes {
@@ -337,7 +355,7 @@ func (cli *Client) GetUserEmailByUid(uid string) (mail string, err error) {
 	}()
 	entries, err := cli.Search("", "(uid="+uid+")", []string{"mail"})
 	if err != nil {
-		return
+		panic(err)
 	}
 	for _, entry := range entries {
 		for _, attr := range entry.Attributes {
@@ -364,7 +382,7 @@ func (cli *Client) GetUserEmail(shortdn string) (mail string, err error) {
 	}()
 	entries, err := cli.Search("", "("+shortdn+")", []string{"mail"})
 	if err != nil {
-		return
+		panic(err)
 	}
 	for _, entry := range entries {
 		for _, attr := range entry.Attributes {
