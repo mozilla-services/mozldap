@@ -343,6 +343,43 @@ func (cli *Client) GetUsersInGroups(groups []string) (userdns []string, err erro
 	return
 }
 
+// GetEnabledUsersInGroups takes a list of ldap groups and returns a list of unique members
+// that belong to at least one of the group. Duplicates and disabled users are removed, so
+// you only get members once even if they belong to several groups.
+//
+// example: cli.GetEnabledUsersInGroups([]string{"sysadmins", "svcops", "mojitomakers"})
+func (cli *Client) GetEnabledUsersInGroups(groups []string) (userdns []string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetEnabledUsersInGroups(groups=%q) -> %v",
+				strings.Join(groups, ","), e)
+		}
+	}()
+	usersingroups, err := cli.GetUsersInGroups(groups)
+	if err != nil {
+		panic(err)
+	}
+	q := "(&(!(employeeType=DISABLED))(|"
+	for _, userdn := range usersingroups {
+		q += "(" + strings.Split(userdn, ",")[0] + ")"
+	}
+	q += "))"
+	entries, err := cli.Search(cli.BaseDN, q, []string{"DN"})
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		for _, knowndn := range userdns {
+			if entry.DN == knowndn {
+				goto skipit
+			}
+		}
+		userdns = append(userdns, entry.DN)
+	skipit:
+	}
+	return
+}
+
 // GetUserEmailByUid returns the first email address found in the user's attributes
 //
 // example: cli.GetUserEmailByUid("jvehent")
