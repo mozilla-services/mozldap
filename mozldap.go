@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -272,6 +273,7 @@ func (cli *Client) GetUserId(shortdn string) (uid string, err error) {
 
 // GetUserSSHPublicKeys returns a list of public keys defined in a user's sshPublicKey
 // LDAP attribute. If no public key is found, the list is empty.
+//
 // shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
 // or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
 //
@@ -299,6 +301,78 @@ func (cli *Client) GetUserSSHPublicKeys(shortdn string) (pubkeys []string, err e
 				pubkeys = append(pubkeys, strings.Trim(val, "\n"))
 			}
 		}
+	}
+	return
+}
+
+// GetUserPGPFingerprint returns a PGP fingerprint for the user, or an error if no fingerprint is found.
+//
+// shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
+// or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
+//
+// example: cli.GetUserPGPFingerprint("mail=jvehent@mozilla.com")
+func (cli *Client) GetUserPGPFingerprint(shortdn string) (fp string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserPGPFingerprint(shortdn=%q) -> %v",
+				shortdn, e)
+		}
+	}()
+	entries, err := cli.Search("", "("+shortdn+")", []string{"pgpFingerprint"})
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name != "pgpFingerprint" {
+				continue
+			}
+			for _, fp = range attr.Values {
+				// remove spaces
+				fp = strings.Replace(fp, " ", "", -1)
+				if len(fp) == 40 {
+					return
+				}
+			}
+		}
+	}
+	panic("no fingerprint found in ldap")
+}
+
+// GetUserPGPKey returns a PGP public key for the user, or an error if no key is found.
+// The fingerprint of the key is first search in LDAP, then used to find the public key
+// on gpg.mozilla.org.
+//
+// shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
+// or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
+//
+// example: cli.GetUserPGPKey("mail=jvehent@mozilla.com")
+func (cli *Client) GetUserPGPKey(shortdn string) (key []byte, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserPGPKey(shortdn=%q) -> %v",
+				shortdn, e)
+		}
+	}()
+	fp, err := cli.GetUserPGPFingerprint(shortdn)
+	if err != nil {
+		panic(err)
+	}
+	re := regexp.MustCompile(`^0x[ABCDEF0-9]{8,64}$`)
+	if !re.MatchString("0x" + fp) {
+		panic("Invalid key id. Must be in format '0x[ABCDEF0-9]{8,64}")
+	}
+	resp, err := http.Get("http://gpg.mozilla.org/pks/lookup?op=get&options=mr&search=0x" + fp)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		panic("keyserver lookup error: " + http.StatusText(resp.StatusCode))
+	}
+	key, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
 	}
 	return
 }
