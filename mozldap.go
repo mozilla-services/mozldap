@@ -120,7 +120,7 @@ func NewClient(uri, username, password, cacertpath string, tlsconf *tls.Config, 
 //
 // * password is a password for the bind user
 //
-// *tlscertpath is the path to a X509 client certificate in PEM format, eg `/etc/mozldap/client.crt`
+// * tlscertpath is the path to a X509 client certificate in PEM format, eg `/etc/mozldap/client.crt`
 //
 // * tlskeypath is the path to the private key that maps to the client certificate, eg `/etc/mozldap/client.key`
 //
@@ -511,4 +511,36 @@ func (cli *Client) GetUserEmail(shortdn string) (mail string, err error) {
 		}
 	}
 	panic("no mail attribute found")
+}
+
+// GetGroupsOfUser returns a list of groups a given user belongs to. This is an expensive
+// search as it needs to go through all the groups to check if the user belongs to them.
+//
+// shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
+// or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
+//
+// example: cli.GetUserPGPKey("mail=jvehent@mozilla.com")
+func (cli *Client) GetGroupsOfUser(shortdn string) (groups []string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetGroupsOfUser(shortdn=%q) -> %v", shortdn, e)
+		}
+	}()
+	entries, err := cli.Search("ou=groups,"+cli.BaseDN, "(cn=*)", []string{"member"})
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name != "member" {
+				continue
+			}
+			for _, val := range attr.Values {
+				if strings.Split(val, ",")[0] == shortdn {
+					groups = append(groups, entry.DN)
+				}
+			}
+		}
+	}
+	return
 }
