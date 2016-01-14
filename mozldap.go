@@ -513,8 +513,8 @@ func (cli *Client) GetUserEmail(shortdn string) (mail string, err error) {
 	panic("no mail attribute found")
 }
 
-// GetGroupsOfUser returns a list of groups a given user belongs to. This is an expensive
-// search as it needs to go through all the groups to check if the user belongs to them.
+// GetGroupsOfUser returns a list of groups a given user belongs to. This function returns the DN
+// of all groups, including posix and scm groups.
 //
 // dn is the distinguished name of the user, such as "mail=jvehent@mozilla.com,o=com,dc=mozilla"
 //
