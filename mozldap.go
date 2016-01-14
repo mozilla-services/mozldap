@@ -516,31 +516,29 @@ func (cli *Client) GetUserEmail(shortdn string) (mail string, err error) {
 // GetGroupsOfUser returns a list of groups a given user belongs to. This is an expensive
 // search as it needs to go through all the groups to check if the user belongs to them.
 //
-// shortdn is the first part of a distinguished name, such as "mail=jvehent@mozilla.com"
-// or "uid=ffxbld". Do not add ,dc=mozilla to the DN.
+// dn is the distinguished name of the user, such as "mail=jvehent@mozilla.com,o=com,dc=mozilla"
 //
-// example: cli.GetUserPGPKey("mail=jvehent@mozilla.com")
-func (cli *Client) GetGroupsOfUser(shortdn string) (groups []string, err error) {
+// example: cli.GetGroupsOfUser("mail=jvehent@mozilla.com,o=com,dc=mozilla")
+func (cli *Client) GetGroupsOfUser(dn string) (groups []string, err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("mozldap.GetGroupsOfUser(shortdn=%q) -> %v", shortdn, e)
+			err = fmt.Errorf("mozldap.GetGroupsOfUser(dn=%q) -> %v", dn, e)
 		}
 	}()
-	entries, err := cli.Search("ou=groups,"+cli.BaseDN, "(cn=*)", []string{"member"})
+	uid, err := cli.GetUserId(strings.Split(dn, ",")[0])
+	if err != nil {
+		panic(err)
+	}
+	mail, err := cli.GetUserEmail(strings.Split(dn, ",")[0])
+	if err != nil {
+		panic(err)
+	}
+	entries, err := cli.Search("ou=groups,"+cli.BaseDN, "(|(member="+dn+")(memberUID="+uid+")(memberUID="+mail+"))", []string{"DN"})
 	if err != nil {
 		panic(err)
 	}
 	for _, entry := range entries {
-		for _, attr := range entry.Attributes {
-			if attr.Name != "member" {
-				continue
-			}
-			for _, val := range attr.Values {
-				if strings.Split(val, ",")[0] == shortdn {
-					groups = append(groups, entry.DN)
-				}
-			}
-		}
+		groups = append(groups, entry.DN)
 	}
 	return
 }

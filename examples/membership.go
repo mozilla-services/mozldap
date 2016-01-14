@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/mozilla-services/mozldap"
 )
@@ -27,9 +26,8 @@ func main() {
 		panic(err)
 	}
 	for _, udn := range udns {
-		shortdn := strings.Split(udn, ",")[0]
-		fmt.Printf("\n%s\n", shortdn)
-		groups, err := cli.GetGroupsOfUser(shortdn)
+		fmt.Printf("\n%s\n", udn)
+		groups, err := cli.GetGroupsOfUser(udn)
 		if err != nil {
 			panic(err)
 		}
