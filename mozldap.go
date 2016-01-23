@@ -276,6 +276,26 @@ func (cli *Client) GetUserId(shortdn string) (uid string, err error) {
 	return
 }
 
+// GetUserDNByID returns the distinguished name of a given user using his ID
+//
+// example: cli.GetUserDNByID("jvehent")
+func (cli *Client) GetUserDNById(uid string) (dn string, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("mozldap.GetUserDNByID(uid=%q) -> %v", uid, e)
+		}
+	}()
+	entries, err := cli.Search("", "(uid="+uid+")", []string{"mail"})
+	if err != nil {
+		panic(err)
+	}
+	if len(entries) != 1 {
+		panic(fmt.Sprintf("found %d entries matching uid %q, expected 1", len(entries), uid))
+	}
+	dn = entries[0].DN
+	return
+}
+
 // GetUserSSHPublicKeys returns a list of public keys defined in a user's sshPublicKey
 // LDAP attribute. If no public key is found, the list is empty.
 //
