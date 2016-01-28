@@ -3,12 +3,14 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/howeyc/gopass"
 	"github.com/mozilla-services/mozldap"
 )
 
@@ -16,10 +18,22 @@ func main() {
 	var (
 		showUser bool
 	)
+	fmt.Printf("ldap uid (eg. jvehent)> ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+	uid := scanner.Text()
+	fmt.Printf("ldap password> ")
+	pass, err := gopass.GetPasswd()
+	if err != nil {
+		log.Fatal(err)
+	}
 	cli, err := mozldap.NewClient(
-		os.Getenv("MOZLDAPURI"),
-		os.Getenv("MOZLDAPUSER"),
-		os.Getenv("MOZLDAPPASSWORD"),
+		"ldap://ldap.db.scl3.mozilla.com/dc=mozilla",
+		fmt.Sprintf("mail=%s@mozilla.com,o=com,dc=mozilla", uid),
+		fmt.Sprintf("%s", pass),
 		"",
 		&tls.Config{InsecureSkipVerify: true},
 		true)
