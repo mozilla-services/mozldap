@@ -34,7 +34,6 @@ func main() {
 		"ldap://ldap.db.scl3.mozilla.com/dc=mozilla",
 		fmt.Sprintf("mail=%s@mozilla.com,o=com,dc=mozilla", uid),
 		fmt.Sprintf("%s", pass),
-		"",
 		&tls.Config{InsecureSkipVerify: true},
 		true)
 	flag.BoolVar(&showUser, "u", false, "Show memberships of a users identified by their ID")
