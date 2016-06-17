@@ -11,7 +11,7 @@ import (
 	"os"
 
 	"github.com/howeyc/gopass"
-	"github.com/mozilla-services/mozldap"
+	"go.mozilla.org/mozldap"
 )
 
 func main() {

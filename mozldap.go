@@ -1,4 +1,4 @@
-package mozldap
+package mozldap // import "go.mozilla.org/mozldap"
 
 import (
 	"crypto/tls"
