@@ -1,7 +1,10 @@
-MozLDAP
+MozLDAP [![GoDoc](https://godoc.org/go.mozilla.org/mozldap?status.svg)](https://godoc.org/go.mozilla.org/mozldap)
 -------
 Go Binding to Mozilla LDAP.
-https://godoc.org/go.mozilla.org/mozldap
+
+```go
+import "go.mozilla.org/mozldap"
+```
 
 Contributing
 ------------
