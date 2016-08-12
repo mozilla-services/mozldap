@@ -317,7 +317,7 @@ func (cli *Client) GetUserUidNumber(shortdn string) (uidNumber uint64, err error
 			}
 			for _, val := range attr.Values {
 				uidNumber, err = strconv.ParseUint(val, 10, 64)
-				if err != nill {
+				if err != nil {
 					panic(err)
 				}
 			}
