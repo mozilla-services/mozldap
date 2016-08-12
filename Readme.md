@@ -1,4 +1,4 @@
-MozLDAP [![GoDoc](https://godoc.org/go.mozilla.org/mozldap?status.svg)](https://godoc.org/go.mozilla.org/mozldap)
+MozLDAP [![GoDoc](https://godoc.org/go.mozilla.org/mozldap?status.svg)](https://godoc.org/go.mozilla.org/mozldap) [![Build Status](https://travis-ci.org/mozilla-services/mozldap.svg?branch=master)](https://travis-ci.org/mozilla-services/mozldap)
 -------
 Go Binding to Mozilla LDAP.
 
