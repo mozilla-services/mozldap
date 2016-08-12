@@ -10,8 +10,10 @@ matrix:
     fast_finish: true
 
 before_install:
-    - go get golang.org/x/tools/cmd/cover
     - go get github.com/golang/lint/golint
 
 script:
-    - make vet lint generate test
+    # make sure it builds
+    - make vet lint generate test install
+    # test if deps are up to date
+    - govend -u && git diff --quiet
