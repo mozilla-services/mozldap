@@ -4,8 +4,27 @@
 
 GO 			:= GOOS=$(OS) GOARCH=$(ARCH) GO15VENDOREXPERIMENT=1 go
 GOGETTER	:= GOPATH=$(shell pwd)/.tmpdeps go get -d
+PROJECT     := go.mozilla.org/mozldap
+GOLINT 		:= golint
 
 all: test install
 
 install:
-	$(GO) install github.com/mozilla-services/mozldap
+	$(GO) install $(PROJECT)
+
+lint:
+	$(GOLINT) $(PROJECT)
+
+vet:
+	$(GO) vet $(PROJECT)
+
+test:
+	$(GO) test -covermode=count -coverprofile=coverage.out $(PROJECT)
+
+showcoverage: test
+	$(GO) tool cover -html=coverage.out
+
+generate:
+	$(GO) generate
+
+

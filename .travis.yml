@@ -1,0 +1,17 @@
+language: go
+go:
+    - 1.5
+    - 1.6
+    - tip
+
+go_import_path: go.mozilla.org/mozldap
+
+matrix:
+    fast_finish: true
+
+before_install:
+    - go get golang.org/x/tools/cmd/cover
+    - go get github.com/golang/lint/golint
+
+script:
+    - make vet lint generate test
