@@ -3,7 +3,8 @@ go:
     - 1.5
     - 1.6
     - tip
-
+env:
+    - GO15VENDOREXPERIMENT=1
 go_import_path: go.mozilla.org/mozldap
 
 matrix:

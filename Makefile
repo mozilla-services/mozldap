@@ -6,8 +6,9 @@ GO 			:= GOOS=$(OS) GOARCH=$(ARCH) GO15VENDOREXPERIMENT=1 go
 GOGETTER	:= GOPATH=$(shell pwd)/.tmpdeps go get -d
 PROJECT     := go.mozilla.org/mozldap
 GOLINT 		:= golint
+GOVEND 		:= govend
 
-all: test install
+all: vendor lint vet generate test install
 
 install:
 	$(GO) install $(PROJECT)
@@ -23,6 +24,9 @@ test:
 
 showcoverage: test
 	$(GO) tool cover -html=coverage.out
+
+vendor:
+	$(GOVEND) -u
 
 generate:
 	$(GO) generate
