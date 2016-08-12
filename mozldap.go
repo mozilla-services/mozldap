@@ -299,7 +299,7 @@ func (cli *Client) GetUserDNById(uid string) (dn string, err error) {
 // GetUserUidNumber returns the UID number of a user using a shortdn
 //
 // example: cli.GetUserUidNumber("mail=jvehent@mozilla.com")
-func (cli *Client) GetUserUidNumber(shortdn string) (uidNumber string, err error) {
+func (cli *Client) GetUserUidNumber(shortdn string) (uidNumber uint64, err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			err = fmt.Errorf("mozldap.GetUserUidNumber(shortdn=%q) -> %v",
@@ -316,11 +316,14 @@ func (cli *Client) GetUserUidNumber(shortdn string) (uidNumber string, err error
 				continue
 			}
 			for _, val := range attr.Values {
-				uidNumber = val
+				uidNumber, err = strconv.ParseUint(val, 10, 64)
+				if err != nill {
+					panic(err)
+				}
 			}
 		}
 	}
-	if uidNumber == "" {
+	if uidNumber < 0 {
 		err = fmt.Errorf("no uidNumber found in the attributes of user '%s'", shortdn)
 	}
 	return
