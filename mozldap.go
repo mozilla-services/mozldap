@@ -31,17 +31,23 @@ func (cli *Client) Close() {
 // default are used (tls1.2, secure verify, ...).
 //
 // * uri is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
+//
 // * username is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
+//
 // * password is a password for the bind user
+//
 // * cacertpath is the path to a file containing trusted root certificates
+//
 // * tlsconf is a Go TLS Configuration
+//
 // * starttls requires that the LDAP connection is opened insecurely but immediately switched to TLS using the StartTLS protocol.
 func NewClient(uri, username, password string, tlsconf *tls.Config, starttls bool) (Client, error) {
-	errorText := fmt.Sprintf("mozldap.NewClient(uri=%q, username=%q, password=****, starttls=%v)", uri, username, starttls)
+	errorPrefix := fmt.Sprintf("mozldap.NewClient(uri=%q, username=%q, password=****, starttls=%v)",
+		uri, username, starttls)
 
 	cli, err := ParseUri(uri)
 	if err != nil {
-		return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+		return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 	}
 	if tlsconf == nil {
 		// sensible default for TLS configuration
@@ -74,7 +80,7 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 		cli.conn, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", cli.Host, cli.Port))
 	}
 	if err != nil {
-		return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+		return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 	}
 	// TLS and StartTLS are mutually exclusive
 	if !cli.UseTLS && starttls {
@@ -82,14 +88,14 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 		err = cli.conn.StartTLS(tlsconf)
 		if err != nil {
 			cli.Close()
-			return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+			return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 		}
 	}
 	// First bind with a read only user
 	err = cli.conn.Bind(username, password)
 	if err != nil {
 		cli.Close()
-		return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+		return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 	}
 	return cli, err
 }
@@ -98,20 +104,26 @@ func NewClient(uri, username, password string, tlsconf *tls.Config, starttls boo
 // This mode does not use StartTLS, and enforces a TLS connection before the LDAP authentication happens.
 //
 // * uri is a connection string to the ldap server, eg. `ldaps://example.net:636/dc=example,dc=net`
+//
 // * username is a bind user, eg. `uid=bind-bob,ou=logins,dc=mozilla`
+//
 // * password is a password for the bind user
+//
 // * tlscertpath is the path to a X509 client certificate in PEM format, eg `/etc/mozldap/client.crt`
+//
 // * tlskeypath is the path to the private key that maps to the client certificate, eg `/etc/mozldap/client.key`
+//
 // * cacertpath is the path to the X509 certificate of the Certificate Authority.
+//
 // * tlsconf is a Go TLS Configuration which can be used to disable cert verification and other horrors
 func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath string, tlsconf *tls.Config) (Client, error) {
-	errorText := fmt.Sprintf("mozldap.NewTLSClient(uri=%q, username=%q, password=****, tlscertpath=%q, tlskeypath=%q, cacertpath=%q)", uri, username, tlscertpath, tlskeypath, cacertpath)
+	errorPrefix := fmt.Sprintf("mozldap.NewTLSClient(uri=%q, username=%q, password=****, tlscertpath=%q, tlskeypath=%q, cacertpath=%q)", uri, username, tlscertpath, tlskeypath, cacertpath)
 	cli := Client{}
 
 	// import the client certificates
 	cert, err := tls.LoadX509KeyPair(tlscertpath, tlskeypath)
 	if err != nil {
-		return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+		return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 	}
 
 	if tlsconf == nil {
@@ -138,10 +150,10 @@ func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath s
 		ca := x509.NewCertPool()
 		CAcert, err := ioutil.ReadFile(cacertpath)
 		if err != nil {
-			return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+			return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 		}
 		if ok := ca.AppendCertsFromPEM(CAcert); !ok {
-			return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+			return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 		}
 		tlsconf.RootCAs = ca
 	}
@@ -149,7 +161,7 @@ func NewTLSClient(uri, username, password, tlscertpath, tlskeypath, cacertpath s
 	// instantiate an ldap client
 	cli, err = NewClient(uri, username, password, tlsconf, false)
 	if err != nil {
-		return Client{}, fmt.Errorf("%s -> %s", errorText, err.Error())
+		return Client{}, fmt.Errorf("%s -> %s", errorPrefix, err.Error())
 	}
 	return cli, err
 }
@@ -161,14 +173,14 @@ const URIFORMAT = "ldaps://ldap.example.net:636/dc=example,dc=net"
 // ParseUri extracts connection parameters from a given URI and return a client
 // that is ready to connect. This shouldn't be called directly, use NewClient() instead.
 func ParseUri(uri string) (Client, error) {
-	errorText := fmt.Sprintf("mozldap.ParseUri(uri=%q)", uri)
+	errorPrefix := fmt.Sprintf("mozldap.ParseUri(uri=%q)", uri)
 
 	cli := Client{}
 
 	urire := regexp.MustCompile(URIRE)
 	fields := urire.FindStringSubmatch(uri)
 	if fields == nil || len(fields) != 5 {
-		return Client{}, fmt.Errorf("%s -> failed to parse URI. Format: %q", errorText, URIFORMAT)
+		return Client{}, fmt.Errorf("%s -> failed to parse URI. Format: %q", errorPrefix, URIFORMAT)
 	}
 
 	// tls or not depends on "s"
@@ -177,7 +189,7 @@ func ParseUri(uri string) (Client, error) {
 	}
 	// get the hostname
 	if fields[2] == "" {
-		return Client{}, fmt.Errorf("%s -> missing host in URI. Format: %q", errorText, URIFORMAT)
+		return Client{}, fmt.Errorf("%s -> missing host in URI. Format: %q", errorPrefix, URIFORMAT)
 	}
 	cli.Host = fields[2]
 	// get the port or use default ports
@@ -190,13 +202,13 @@ func ParseUri(uri string) (Client, error) {
 	} else {
 		port, err := strconv.Atoi(fields[3])
 		if err != nil {
-			return Client{}, fmt.Errorf("%s -> invalid port in URI. Format: %q", errorText, URIFORMAT)
+			return Client{}, fmt.Errorf("%s -> invalid port in URI. Format: %q", errorPrefix, URIFORMAT)
 		}
 		cli.Port = port
 	}
 	// get the base DN
 	if fields[4] == "" {
-		return Client{}, fmt.Errorf("%s -> missing BaseDN in URI. Format: %q", errorText, URIFORMAT)
+		return Client{}, fmt.Errorf("%s -> missing BaseDN in URI. Format: %q", errorPrefix, URIFORMAT)
 	}
 	cli.BaseDN = fields[4]
 	return cli, nil
@@ -241,19 +253,19 @@ func (cli *Client) GetUserId(shortdn string) (string, error) {
 //
 // example: cli.GetUserUID("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserUID(shortdn string) (string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserUID(shortdn=%q)", shortdn)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserUID(shortdn=%q)", shortdn)
 	uid := ""
 
 	entries, err := cli.Search("", "("+shortdn+")", []string{"uid"})
 	if err != nil {
-		return "", fmt.Errorf("%s -> %q", errorText, err.Error())
+		return "", fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	if len(entries) != 1 {
-		return "", fmt.Errorf("%s -> found %d entries matching shortdn %q, expected 1", errorText, len(entries), shortdn)
+		return "", fmt.Errorf("%s -> found %d entries matching shortdn %q, expected 1", errorPrefix, len(entries), shortdn)
 	}
 	uid = entries[0].GetAttributeValue("uid")
 	if uid == "" {
-		return "", fmt.Errorf("%s -> no uid found in the attributes of user '%s'", errorText, shortdn)
+		return "", fmt.Errorf("%s -> could not find uid for shortdn %q", errorPrefix, shortdn)
 	}
 	return uid, nil
 }
@@ -262,17 +274,20 @@ func (cli *Client) GetUserUID(shortdn string) (string, error) {
 //
 // example: cli.GetUserFullNameByEmail("jvehent@mozilla.com")
 func (cli *Client) GetUserFullNameByEmail(email string) (string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserFullNameByEmail(mail=%q)", email)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserFullNameByEmail(mail=%q)", email)
 	fullName := ""
 
 	entries, err := cli.Search("", "(mail="+email+")", []string{"cn"})
 	if err != nil {
-		return "", fmt.Errorf("%s -> %q", errorText, err.Error())
+		return "", fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	if len(entries) != 1 {
-		return "", fmt.Errorf("%s -> found %d entries matching mail %q, expected 1", errorText, len(entries), email)
+		return "", fmt.Errorf("%s -> found %d entries matching mail %q, expected 1", errorPrefix, len(entries), email)
 	}
 	fullName = entries[0].GetAttributeValue("cn")
+	if fullName == "" {
+		return "", fmt.Errorf("%s -> could not find fullName for user %q", errorPrefix, email)
+	}
 	return fullName, err
 }
 
@@ -285,17 +300,20 @@ func (cli *Client) GetUserDNById(uid string) (string, error) {
 //
 // example: cli.GetUserDNByUID("jvehent")
 func (cli *Client) GetUserDNByUID(uid string) (string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserDNByUID(uid=%q)", uid)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserDNByUID(uid=%q)", uid)
 	dn := ""
 
 	entries, err := cli.Search("", "(uid="+uid+")", []string{"mail"})
 	if err != nil {
-		return "", fmt.Errorf("%s -> %q", errorText, err.Error())
+		return "", fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	if len(entries) != 1 {
-		return "", fmt.Errorf("%s -> found %d entries matching uid %q, expected 1", errorText, len(entries), uid)
+		return "", fmt.Errorf("%s -> found %d entries matching uid %q, expected 1", errorPrefix, len(entries), uid)
 	}
 	dn = entries[0].DN
+	if dn == "" {
+		return "", fmt.Errorf("%s -> could not find DN for uid %q", errorPrefix, uid)
+	}
 	return dn, nil
 }
 
@@ -308,24 +326,23 @@ func (cli *Client) GetUserUidNumber(shortdn string) (uint64, error) {
 //
 // example: cli.GetUserUIDNumber("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserUIDNumber(shortdn string) (uint64, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserUIDNumber(shortdn=%q)", shortdn)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserUIDNumber(shortdn=%q)", shortdn)
 	uidNumber := uint64(0)
 
 	entries, err := cli.Search("", "("+shortdn+")", []string{"uidNumber"})
 	if err != nil {
-		return 0, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return 0, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
+	}
+	if len(entries) != 1 {
+		return 0, fmt.Errorf("%s -> found %d entries matching shortdn %q, expected 1", errorPrefix, len(entries), shortdn)
+	}
+	uidNumber, err = strconv.ParseUint(entries[0].GetAttributeValue("uidNumber"), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 
-	if entries[0].Attributes[0] != nil && len(entries[0].Attributes[0].Values) == 1 {
-		uidNumber, err = strconv.ParseUint(entries[0].GetAttributeValue("uidNumber"), 10, 64)
-		if err != nil {
-			return 0, fmt.Errorf("%s -> %q", errorText, err.Error())
-		}
-	} else {
-		return 0, fmt.Errorf("%s -> could not find uidNumber for %q", errorText, shortdn)
-	}
 	if uidNumber < 0 {
-		err = fmt.Errorf("no uidNumber found in the attributes of user '%s'", shortdn)
+		return 0, fmt.Errorf("%s -> could not find uidNumber for %q", errorPrefix, shortdn)
 	}
 	return uidNumber, err
 }
@@ -363,25 +380,21 @@ func (cli *Client) GetUserSSHPublicKeys(shortdn string) ([]string, error) {
 //
 // example: cli.GetUserPGPFingerprint("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserPGPFingerprint(shortdn string) (string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserPGPFingerprint(shortdn=%q)", shortdn)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserPGPFingerprint(shortdn=%q)", shortdn)
 
 	fingerprint := ""
 	entries, err := cli.Search("", "("+shortdn+")", []string{"pgpFingerprint"})
 	if err != nil {
-		return "", fmt.Errorf("%s -> %q", errorText, err.Error())
+		return "", fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	if len(entries) != 1 {
-		return "", fmt.Errorf("%s -> found %d entries matching shortdn %q, expected 1", errorText, len(entries), shortdn)
+		return "", fmt.Errorf("%s -> found %d entries matching shortdn %q, expected 1", errorPrefix, len(entries), shortdn)
 	}
-	if entries[0].Attributes[0] != nil && len(entries[0].Attributes[0].Values) == 1 {
-		fingerprint = entries[0].GetAttributeValue("pgpFingerprint")
-	} else {
-		return "", fmt.Errorf("%s -> could not find fingerprint for %q", errorText, shortdn)
-	}
+	fingerprint = entries[0].GetAttributeValue("pgpFingerprint")
 	// remove spaces
 	fingerprint = strings.Replace(fingerprint, " ", "", -1)
 	if len(fingerprint) != 40 {
-		return "", fmt.Errorf("%s -> could not find fingerprint for %q", errorText, shortdn)
+		return "", fmt.Errorf("%s -> could not find fingerprint for %q", errorPrefix, shortdn)
 	}
 	return fingerprint, err
 }
@@ -395,28 +408,28 @@ func (cli *Client) GetUserPGPFingerprint(shortdn string) (string, error) {
 //
 // example: cli.GetUserPGPKey("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserPGPKey(shortdn string) ([]byte, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserPGPKey(shortdn=%q)", shortdn)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserPGPKey(shortdn=%q)", shortdn)
 	key := []byte{}
 
 	fingerprint, err := cli.GetUserPGPFingerprint(shortdn)
 	if err != nil {
-		return []byte{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []byte{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	re := regexp.MustCompile(`^0x[ABCDEF0-9]{8,64}$`)
 	if !re.MatchString("0x" + fingerprint) {
-		return []byte{}, fmt.Errorf("%s -> Invalid key id. Must be in format '0x[ABCDEF0-9]{8,64}", errorText)
+		return []byte{}, fmt.Errorf("%s -> Invalid key id. Must be in format '0x[ABCDEF0-9]{8,64}", errorPrefix)
 	}
 	resp, err := http.Get("http://gpg.mozilla.org/pks/lookup?op=get&options=mr&search=0x" + fingerprint)
 	if err != nil {
-		return []byte{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []byte{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return []byte{}, fmt.Errorf("%s -> keyserver lookup error: %q", errorText, http.StatusText(resp.StatusCode))
+		return []byte{}, fmt.Errorf("%s -> keyserver lookup error: %q", errorPrefix, http.StatusText(resp.StatusCode))
 	}
 	key, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return []byte{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []byte{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	return key, err
 }
@@ -427,7 +440,7 @@ func (cli *Client) GetUserPGPKey(shortdn string) ([]byte, error) {
 //
 // example: cli.GetUsersInGroups([]string{"sysadmins", "svcops", "mojitomakers"})
 func (cli *Client) GetUsersInGroups(groups []string) ([]string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUsersInGroups(groups=%q)", strings.Join(groups, ","))
+	errorPrefix := fmt.Sprintf("mozldap.GetUsersInGroups(groups=%q)", strings.Join(groups, ","))
 
 	q := "(|"
 	for _, group := range groups {
@@ -436,7 +449,7 @@ func (cli *Client) GetUsersInGroups(groups []string) ([]string, error) {
 	q += ")"
 	entries, err := cli.Search("ou=groups,"+cli.BaseDN, q, []string{"member"})
 	if err != nil {
-		return []string{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []string{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	usersMap := make(map[string]bool)
 	for _, entry := range entries {
@@ -462,11 +475,11 @@ func (cli *Client) GetUsersInGroups(groups []string) ([]string, error) {
 //
 // example: cli.GetEnabledUsersInGroups([]string{"sysadmins", "svcops", "mojitomakers"})
 func (cli *Client) GetEnabledUsersInGroups(groups []string) ([]string, error) {
-	errorText := fmt.Sprintf("mozldap.GetEnabledUsersInGroups(groups=%q)", strings.Join(groups, ","))
+	errorPrefix := fmt.Sprintf("mozldap.GetEnabledUsersInGroups(groups=%q)", strings.Join(groups, ","))
 
 	usersInGroups, err := cli.GetUsersInGroups(groups)
 	if err != nil {
-		return []string{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []string{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	q := "(&(!(employeeType=DISABLED))(|"
 	for _, userDN := range usersInGroups {
@@ -475,7 +488,7 @@ func (cli *Client) GetEnabledUsersInGroups(groups []string) ([]string, error) {
 	q += "))"
 	entries, err := cli.Search(cli.BaseDN, q, []string{"DN"})
 	if err != nil {
-		return []string{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []string{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 
 	enabledUsersMap := make(map[string]bool)
@@ -499,17 +512,21 @@ func (cli *Client) GetUserEmailByUid(uid string) (string, error) {
 //
 // example: cli.GetUserEmailByUID("jvehent")
 func (cli *Client) GetUserEmailByUID(uid string) (string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserEmailByUID(uid=%q)", uid)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserEmailByUID(uid=%q)", uid)
 	mail := ""
 
 	entries, err := cli.Search("", "(uid="+uid+")", []string{"mail"})
 	if err != nil {
-		return "", fmt.Errorf("%s -> %q", errorText, err.Error())
+		return "", fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
-	if entries[0].Attributes[0] != nil && len(entries[0].Attributes[0].Values) >= 1 {
-		mail = entries[0].GetAttributeValues("mail")[0]
-	} else {
-		return "", fmt.Errorf("%s -> could not find email for %q", errorText, uid)
+	if len(entries) != 1 {
+		return "", fmt.Errorf("%s -> found %d entries matching uid %q, expected 1", errorPrefix, len(entries), uid)
+	}
+	if mails := entries[0].GetAttributeValues("mail"); len(mails) >= 1 {
+		mail = mails[0]
+	}
+	if mail == "" {
+		return "", fmt.Errorf("%s -> could not find email for %q", errorPrefix, uid)
 	}
 	return mail, err
 }
@@ -518,17 +535,21 @@ func (cli *Client) GetUserEmailByUID(uid string) (string, error) {
 //
 // example: cli.GetUserEmail("mail=jvehent@mozilla.com")
 func (cli *Client) GetUserEmail(shortdn string) (string, error) {
-	errorText := fmt.Sprintf("mozldap.GetUserEmail(shortdn=%q)", shortdn)
+	errorPrefix := fmt.Sprintf("mozldap.GetUserEmail(shortdn=%q)", shortdn)
 	mail := ""
 
 	entries, err := cli.Search("", "("+shortdn+")", []string{"mail"})
 	if err != nil {
-		return "", fmt.Errorf("%s -> %q", errorText, err.Error())
+		return "", fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
-	if entries[0].Attributes[0] != nil && len(entries[0].Attributes[0].Values) >= 1 {
-		mail = entries[0].GetAttributeValues("mail")[0]
-	} else {
-		return "", fmt.Errorf("%s -> could not find email for %q", errorText, shortdn)
+	if len(entries) != 1 {
+		return "", fmt.Errorf("%s -> found %d entries matching shortdn %q, expected 1", errorPrefix, len(entries), shortdn)
+	}
+	if mails := entries[0].GetAttributeValues("mail"); len(mails) >= 1 {
+		mail = mails[0]
+	}
+	if mail == "" {
+		return "", fmt.Errorf("%s -> could not find email for %q", errorPrefix, shortdn)
 	}
 	return mail, err
 }
@@ -540,20 +561,20 @@ func (cli *Client) GetUserEmail(shortdn string) (string, error) {
 //
 // example: cli.GetGroupsOfUser("mail=jvehent@mozilla.com,o=com,dc=mozilla")
 func (cli *Client) GetGroupsOfUser(dn string) ([]string, error) {
-	errorText := fmt.Sprintf("mozldap.GetGroupsOfUser(dn=%q)", dn)
+	errorPrefix := fmt.Sprintf("mozldap.GetGroupsOfUser(dn=%q)", dn)
 	groups := []string{}
 
 	uid, err := cli.GetUserId(strings.Split(dn, ",")[0])
 	if err != nil {
-		return []string{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []string{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	mail, err := cli.GetUserEmail(strings.Split(dn, ",")[0])
 	if err != nil {
-		return []string{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []string{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	entries, err := cli.Search("ou=groups,"+cli.BaseDN, "(|(member="+dn+")(memberUID="+uid+")(memberUID="+mail+"))", []string{"DN"})
 	if err != nil {
-		return []string{}, fmt.Errorf("%s -> %q", errorText, err.Error())
+		return []string{}, fmt.Errorf("%s -> %q", errorPrefix, err.Error())
 	}
 	for _, entry := range entries {
 		groups = append(groups, entry.DN)
