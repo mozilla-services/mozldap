@@ -362,9 +362,9 @@ func (cli *Client) GetUserGithubByUID(uid string) (string, error) {
 	if len(entries) != 1 {
 		return "", fmt.Errorf("%s -> found %d entries matching uid %q, expected 1", errorText, len(entries), uid)
 	}
-	if entries[0].Attributes[0] != nil && len(entries[0].Attributes[0].Values) == 1 {
-		githubUsername = entries[0].GetAttributeValue("githubProfile")
-	} else {
+
+	githubUsername = entries[0].GetAttributeValue("githubProfile")
+	if githubUsername == "" {
 		return "", fmt.Errorf("%s -> could not find githubProfile for %q", errorText, uid)
 	}
 
